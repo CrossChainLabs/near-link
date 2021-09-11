@@ -8,6 +8,8 @@ const app = express();
 const port = config.port;
 const maxAttempts = config.maxAttempts;
 
+const { IPFS }  = require("./ipfs");
+
 var cors = require('cors');
 
 Resolver.setServers([config.nearlinknameserver]);
@@ -16,16 +18,12 @@ const resolveTxtAsync = util.promisify(Resolver.resolveTxt);
 app.use(cors())
 
 app.get('/', async (req, res) => {
-  console.log(req.subdomains);  //test
-  console.log(req.hostname);    //test.example.com
-
   const execute = async (attempt) => {
     try {
       return await resolveTxtAsync(req.hostname);
     } catch (err) {
       if (attempt <= maxAttempts) {
         const nextAttempt = attempt + 1;
-        console.error(`Retrying due to:`, err)
         return execute(nextAttempt);
       } else {
         console.error(`Error:`, err)
@@ -35,21 +33,16 @@ app.get('/', async (req, res) => {
 
   try {
     const addresses = await execute(1);
-    console.log("addresses", addresses);
 
     if (addresses?.length > 0) {
       if (addresses[0]?.length > 0) {
-        console.log(addresses[0][0]);
-        JSDOM.fromURL("https://github.com/jsdom/jsdom", {
-          //url: "https://example.org/",
-          //referrer: "https://example.com/",
-          //contentType: "text/html",
-          includeNodeLocations: true,
-          storageQuota: 10000000
-        }).then(dom => {
-          //console.log(dom.serialize());
-          res.status(200).send(dom.serialize());
-        });
+        let content_hash = addresses[0][0].substring(14);
+        console.log(`ContentHash : ${content_hash} for ${req.hostname}`);
+
+        let ipfsData = await IPFS.getInstance().Load(content_hash);
+  
+        const dom = new JSDOM(ipfsData);
+        res.status(200).send(dom.serialize());
       }
     }
 
@@ -60,8 +53,6 @@ app.get('/', async (req, res) => {
 })
 
 app.listen(port, () => {
-  console.log(`Example app listening at http://test.near.link:${port}`)
+  console.log(`NEAR.link listening at http://near.link:${port}`)
+  console.log(`Test accountId http://nns.testnet.near.link:${port}`)
 })
-
-
-
